@@ -648,6 +648,58 @@ function markAllTablesDirty(){
   markDirty("aog"); markDirty("war"); markDirty("fast"); markDirty("cargo"); markDirty("mro"); markDirty("cargas"); markDirty("hotlist"); markDirty("acompanhamento"); markDirty("tools");
 }
 
+
+// =========================================================
+// ✅ CARGO -> ACOMPANHAMENTO (ATALHO)
+// - Clique em 🔔 / ⚠️ / 📌 na aba Cargo Heroes:
+//   • aplica/guarda o destaque na aba Acompanhamento
+//   • troca automaticamente para Acompanhamento
+// =========================================================
+function __findMenuBtnForTab__(tabId){
+  try{
+    const btns = document.querySelectorAll(".menu button");
+    for(const b of btns){
+      const oc = String(b.getAttribute("onclick") || "");
+      if(oc.includes(`openTab('${tabId}'`) || oc.includes(`openTab("${tabId}"`)) return b;
+    }
+    // fallback: por texto
+    for(const b of btns){
+      const t = String(b.innerText || "").toLowerCase();
+      if(tabId === "acompanhamento" && t.includes("acompanhamento")) return b;
+    }
+  }catch(e){}
+  return null;
+}
+
+function __gotoAcompanhamento__(){
+  try{
+    const btn = __findMenuBtnForTab__("acompanhamento");
+    if(btn) openTab("acompanhamento", btn);
+    try{ window.scrollTo({top:0,behavior:"smooth"}); }catch(e){ window.scrollTo(0,0); }
+  }catch(e){}
+}
+
+async function __cargoActionToAcomp__(kind, payload){
+  // kind: "prio" | "air" | "sol"
+  try{
+    const tkTarget = "acompanhamento";
+    if(kind === "prio"){
+      // payload: rid
+      const rid = String(payload||"");
+      if(rid) togglePrio(tkTarget, rid);
+    }else if(kind === "air"){
+      // payload: aircraft
+      const a = String(payload||"");
+      if(a) toggleAirPinned(tkTarget, a);
+    }else if(kind === "sol"){
+      // payload: sol
+      const s = String(payload||"");
+      if(s) toggleSolPinned(tkTarget, s);
+    }
+  }catch(e){}
+  __gotoAcompanhamento__();
+}
+
 function openTab(id,btn){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -3706,20 +3758,53 @@ function initCtxMenuHandlers(){
   if(window.__SAFE_CLICK_BINDED__) return;
   window.__SAFE_CLICK_BINDED__ = true;
   document.addEventListener("click", (e)=>{
+    const activeSection = document.querySelector(".section.active");
+    const activeId = activeSection ? String(activeSection.id || "") : "";
+    const isCargo = (activeId.toLowerCase() === "cargo");
+
     const bell = e.target && e.target.closest ? e.target.closest("button.bellBtn") : null;
     if(bell){
       e.preventDefault(); e.stopImmediatePropagation();
       const tk = bell.getAttribute("data-table");
       const rid = bell.getAttribute("data-rid");
-      try{ __uiPrioClick__(bell); }catch(e){}
+      if(tk && rid){
+        if(isCargo){
+          __cargoActionToAcomp__("prio", rid);
+        }else{
+          togglePrio(tk, rid);
+        }
+      }
       return;
     }
+
     const air = e.target && e.target.closest ? e.target.closest("button.airWarnBtn") : null;
     if(air){
       e.preventDefault(); e.stopImmediatePropagation();
       const tk = air.getAttribute("data-table");
       const a  = air.getAttribute("data-air");
-      try{ __uiAirClick__(air); }catch(e){}
+      if(tk && a){
+        if(isCargo){
+          __cargoActionToAcomp__("air", a);
+        }else{
+          toggleAirPinned(tk, a);
+        }
+      }
+      return;
+    }
+
+    const sol = e.target && e.target.closest ? e.target.closest("button.solBtn") : null;
+    if(sol){
+      e.preventDefault(); e.stopImmediatePropagation();
+      const tk = sol.getAttribute("data-table");
+      const s  = sol.getAttribute("data-sol");
+      if(tk && s){
+        if(isCargo){
+          __cargoActionToAcomp__("sol", s);
+        }else{
+          toggleSolPinned(tk, s);
+          try{ window.scrollTo({top:0,behavior:'smooth'});}catch(err){}
+        }
+      }
       return;
     }
   }, true);
