@@ -561,6 +561,51 @@ function isSharedTable(tableKey){
   return SHARED_TABLE_KEYS.includes(String(tableKey||"").toLowerCase());
 }
 
+// ✅ Regra: cliques na aba Cargo Heroes "sobem" para a aba Acompanhamento
+function __uiActionTableKey__(originTableKey){
+  const tk = String(originTableKey||"").toLowerCase();
+  return (tk === "cargo") ? "acompanhamento" : tk;
+}
+function __openAcompanhamentoTab__(){
+  try{
+    const btns = Array.from(document.querySelectorAll(".menu button"));
+    const btn = btns.find(b => String(b.getAttribute("onclick")||"").includes("openTab('acompanhamento'"));
+    if(btn) openTab("acompanhamento", btn);
+  }catch(e){}
+}
+function __maybeJumpToAcompanhamento__(originTableKey){
+  if(String(originTableKey||"").toLowerCase() !== "cargo") return;
+  try{ __openAcompanhamentoTab__(); }catch(e){}
+  try{ window.scrollTo({ top: 0, behavior: "smooth" }); }catch(e){ try{ window.scrollTo(0,0); }catch(e2){} }
+}
+function __uiPrioClick__(btn){
+  try{
+    const tk = String(btn.getAttribute("data-table") || "").toLowerCase();
+    const rid = btn.getAttribute("data-rid");
+    const origin = String(btn.getAttribute("data-origin") || tk).toLowerCase();
+    try{ __uiPrioClick__(bell); }catch(e){}
+    __maybeJumpToAcompanhamento__(origin);
+  }catch(e){}
+}
+function __uiAirClick__(btn){
+  try{
+    const tk = String(btn.getAttribute("data-table") || "").toLowerCase();
+    const a  = btn.getAttribute("data-air");
+    const origin = String(btn.getAttribute("data-origin") || tk).toLowerCase();
+    try{ __uiAirClick__(air); }catch(e){}
+    __maybeJumpToAcompanhamento__(origin);
+  }catch(e){}
+}
+function __uiSolClick__(originTableKey, sol){
+  try{
+    const origin = String(originTableKey||"").toLowerCase();
+    const target = __uiActionTableKey__(origin);
+    const s = String(sol||"");
+    if(target && s) toggleSolPinned(target, s);
+    __maybeJumpToAcompanhamento__(origin);
+  }catch(e){}
+}
+
 let __pendingRerender = false;
 function __isUserTyping__(){
   try{
@@ -1466,11 +1511,11 @@ function prepareDataCache(){
     if(isFerramentaRow(r)){ out.tools.push(r); __pushAirId__("tools", r);
     __pushSolId__("tools", r); }
 
-    const c = String((r && r.Criticidade) || "").toUpperCase();
+    const c = String((r && r.Criticidade) || "").trim().toUpperCase();
     if(c.includes("WAR"))    { out.war.push(r);  __pushAirId__("war", r);
     __pushSolId__("war", r); }
     if(c.includes("FAST PASS") || c.includes("FASTPASS") || c.includes("FAST")) { out.fast.push(r); __pushAirId__("fast", r); __pushSolId__("fast", r); }
-    if(c.includes("AOG"))    { out.aog.push(r);  __pushAirId__("aog", r);
+    if(c === "AOG")    { out.aog.push(r);  __pushAirId__("aog", r);
     __pushSolId__("aog", r); }
 
     const dt = parseMaybeDate(r && r.Data_Ultima_Atualizacao);
@@ -2680,7 +2725,9 @@ function renderTable(tableKey){
   html += `<tbody>`;
   html += pageRows.map(r=>{
     const rid = rowId(r);
-    const on = __prioHas__(tableKey, rid);
+    const originKey = String(tableKey||"").toLowerCase();
+    const actionKey = __uiActionTableKey__(originKey);
+    const on = __prioHas__(actionKey, rid);
     const stCat = statusCategory(r[STATUS_COL]);
     const sharedTitle = isSharedTable(tableKey)
       ? "Prioridade compartilhada (todas as abas)"
@@ -2689,11 +2736,12 @@ function renderTable(tableKey){
     return `<tr data-rid="${escapeHtml(rid)}">
       <td>
         <button class="bellBtn status-${stCat} ${on ? 'on' : ''}"
-          data-table="${escapeHtml(tableKey)}"
+          data-table="${escapeHtml(actionKey)}"
+          data-origin="${escapeHtml(originKey)}"
           data-rid="${escapeHtml(rid)}"
           type="button"
           title="${escapeHtml(sharedTitle)}"
-          onclick="togglePrio('${tableKey}','${escapeHtml(rid)}')">🔔</button>
+          onclick="__uiPrioClick__(this)">🔔</button>
       </td>
       ${cols.map(c=>{
         const displayed = displayCell(c, r[c], tableKey, r);
@@ -2708,7 +2756,7 @@ function renderTable(tableKey){
                     data-table="${escapeHtml(tableKey)}"
                     data-sol="${escapeHtml(s)}"
                     title="Destacar Solicitação (mostra Material_IDs e permite filtrar)"
-                    onclick="toggleSolPinned('${tableKey}','${escapeHtml(s)}'); try{ window.scrollTo({top:0,behavior:'smooth'});}catch(e){}">📌</button>
+                    onclick="__uiSolClick__('${tableKey}','${escapeHtml(s)}')">📌</button>
                 </div></td>`;
               }
 
@@ -2720,10 +2768,11 @@ function renderTable(tableKey){
           return `<td><div class="airCell">
             <span>${escapeHtml(a)}</span>
             <button class="airWarnBtn" type="button"
-              data-table="${escapeHtml(tableKey)}"
+              data-table="${escapeHtml(actionKey)}"
+              data-origin="${escapeHtml(originKey)}"
               data-air="${escapeHtml(a)}"
-              title="${isSharedTable(tableKey) ? 'Marcar aeronave compartilhada' : 'Marcar aeronave (⚠️)'}"
-              onclick="toggleAirPinned('${tableKey}','${escapeHtml(a)}')">⚠️</button>
+              title="${isSharedTable(actionKey) ? 'Marcar aeronave compartilhada' : 'Marcar aeronave (⚠️)'}"
+              onclick="__uiAirClick__(this)">⚠️</button>
           </div></td>`;
         }
 
@@ -3662,7 +3711,7 @@ function initCtxMenuHandlers(){
       e.preventDefault(); e.stopImmediatePropagation();
       const tk = bell.getAttribute("data-table");
       const rid = bell.getAttribute("data-rid");
-      if(tk && rid) togglePrio(tk, rid);
+      try{ __uiPrioClick__(bell); }catch(e){}
       return;
     }
     const air = e.target && e.target.closest ? e.target.closest("button.airWarnBtn") : null;
@@ -3670,7 +3719,7 @@ function initCtxMenuHandlers(){
       e.preventDefault(); e.stopImmediatePropagation();
       const tk = air.getAttribute("data-table");
       const a  = air.getAttribute("data-air");
-      if(tk && a) toggleAirPinned(tk, a);
+      try{ __uiAirClick__(air); }catch(e){}
       return;
     }
   }, true);
