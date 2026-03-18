@@ -525,6 +525,8 @@ function getCompiledFilters(tableKey){
   if(c && c.signature === sig && c.dataVersion === __dataVersion) return c.compiled;
   const compiled = getActiveFilters(tableKey); __filterCompiledCache[tableKey] = { signature: sig, dataVersion: __dataVersion, compiled }; return compiled;
 }
+
+// ✅ AJUSTE AQUI: O Barcode agora faz correspondência exata!
 function getFilteredBaseRows(tableKey){
   const sig = buildCombinedFilterSignature(tableKey); const c = __filterRowsCache[tableKey];
   if(c && c.signature === sig && c.dataVersion === __dataVersion) return c.rows;
@@ -532,7 +534,20 @@ function getFilteredBaseRows(tableKey){
   let rows = base;
   if(compiled && compiled.length){
     rows = base.filter(r=>{
-      for(let i=0;i<compiled.length;i++){ const col = compiled[i][0]; const token = compiled[i][1]; const bundle = getRowSearchBundle(r, col, tableKey); if(!matchApprox(bundle, token)) return false; }
+      for(let i=0;i<compiled.length;i++){ 
+        const col = compiled[i][0]; 
+        const token = compiled[i][1]; 
+        const bundle = getRowSearchBundle(r, col, tableKey); 
+        
+        // Se for a coluna Barcode, não usa o matchApprox (busca flexível).
+        // Usa apenas a igualdade exata (token.raw já está em letras minúsculas)
+        if(col === "Barcode") {
+          if(String(bundle.lower).trim() !== token.raw) return false;
+        } else {
+          // Para outras colunas, continua usando a busca flexível
+          if(!matchApprox(bundle, token)) return false; 
+        }
+      }
       return true;
     });
   }
