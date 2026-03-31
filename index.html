@@ -1076,32 +1076,10 @@ function renderSharedList(kind){
   items.filter(it => it && !it.deleted).slice(0, 120).forEach(it=>{
     const row = document.createElement("div"); row.className = "itemRow" + (it.done ? " done" : ""); row.dataset.id = it.id;
     const body = document.createElement("div"); body.className = "itemBody"; body.setAttribute("contenteditable", "true"); body.innerHTML = it.html || "";
-    body.addEventListener("blur", async ()=>{ 
-  const html = sanitizeHtmlLight(body.innerHTML); 
-  try{ 
-    if(kind === "turno"){ 
-      const st = await gasCall("updateSharedTurnoItem", it.id, html); 
-      __sharedTurnoState = st || __sharedTurnoState; 
-    }else{ 
-      const st = await gasCall("updateSharedAvisoItem", it.id, html); 
-      __sharedAvisosState = st || __sharedAvisosState; 
-    } 
-  }catch(e){} 
-});
-
-// 🔵 LIXEIRA REMOVIDA (apenas checkbox mantido)
-row.innerHTML = `<input type="checkbox" ${it.done ? "checked" : ""} onchange="toggleDone('${kind}','${escapeHtml(it.id)}')">`;
-
-row.appendChild(body);
-
-if(it.by && it.t){ 
-  const meta = document.createElement("div"); 
-  meta.className = "markedBy"; 
-  meta.innerHTML = `Criado por: <b>${escapeHtml(it.by)}</b> • ${escapeHtml(fmtBR(parseMaybeDate(it.t) || new Date(it.t)))}`; 
-  wrap.appendChild(row); 
-  wrap.appendChild(meta); 
-}else{ 
-  wrap.appendChild(row); 
+    body.addEventListener("blur", async ()=>{ const html = sanitizeHtmlLight(body.innerHTML); try{ if(kind === "turno"){ const st = await gasCall("updateSharedTurnoItem", it.id, html); __sharedTurnoState = st || __sharedTurnoState; }else{ const st = await gasCall("updateSharedAvisoItem", it.id, html); __sharedAvisosState = st || __sharedAvisosState; } }catch(e){} });
+    row.innerHTML = `<input type="checkbox" ${it.done ? "checked" : ""} onchange="toggleDone('${kind}','${escapeHtml(it.id)}')"><button class="iconBtn" title="Excluir" type="button" onclick="deleteItem('${kind}','${escapeHtml(it.id)}')"><span class="trashIcon" aria-hidden="true"></span></button>`; row.appendChild(body);
+    if(it.by && it.t){ const meta = document.createElement("div"); meta.className = "markedBy"; meta.innerHTML = `Criado por: <b>${escapeHtml(it.by)}</b> • ${escapeHtml(fmtBR(parseMaybeDate(it.t) || new Date(it.t)))}`; wrap.appendChild(row); wrap.appendChild(meta); }else{ wrap.appendChild(row); }
+  });
 }
 async function toggleDone(kind, id){ try{ if(kind === "turno"){ const st = await gasCall("toggleSharedTurnoDone", id); __sharedTurnoState = st || __sharedTurnoState; } else{ const st = await gasCall("toggleSharedAvisoDone", id); __sharedAvisosState = st || __sharedAvisosState; } renderSharedList(kind); }catch(e){} }
 async function deleteItem(kind, id){ try{ if(kind === "turno"){ const st = await gasCall("deleteSharedTurnoItem", id); __sharedTurnoState = st || __sharedTurnoState; } else{ const st = await gasCall("deleteSharedAvisoItem", id); __sharedAvisosState = st || __sharedAvisosState; } renderSharedList(kind); }catch(e){} }
