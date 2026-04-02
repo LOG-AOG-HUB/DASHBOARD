@@ -1180,7 +1180,24 @@ function initCtxMenuHandlers(){
   setTimeout(()=>{ try{ runFastAutoPinNow("boot"); }catch(e){} }, 5000);
   
   updateStatusVisibility();
+updateStatusVisibility();
+updateStatusVisibility();
 })();
 </script>
+
+<script>
+window.getDadosChunk = function(dados) {
+    console.log("📦 Pacote de dados fatiados recebido com sucesso!", dados);
+    
+    // Pega a caixa de erro vermelha
+    var statusBox = document.getElementById("status");
+    
+    // Se a caixa existir, a gente esconde ela (Falha Silenciosa)
+    if (statusBox) {
+        statusBox.style.display = "none";
+    }
+};
+</script>
+
 </body>
 </html>
