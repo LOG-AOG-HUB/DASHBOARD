@@ -131,6 +131,52 @@ window.__MAJOR_PARTS_CLEAN__ = MAJOR_PARTS_RAW.split(/[\n\r\s,;\/]+/)
   .map(p => String(p).replace(/[^A-Z0-9]/ig, '').toUpperCase())
   .filter(p => p !== "" && p !== "PN");
 
+  // ... começo do seu código ...
+
+window.__MAJOR_PARTS_CLEAN__ = ["113T6100-89G", /* ... um monte de PNs ... */, "315U2028-106"];
+
+// VVVVV COLE EXATAMENTE AQUI VVVVV
+
+// ===================================================================
+// MOTOR DE SINALIZAÇÃO VISUAL (DOM SWEEPER)
+// Analisa a tela e injeta a etiqueta "🚨 MAJOR PART" de forma segura.
+// ===================================================================
+function destacarMajorPartsNaTela() {
+    if (!window.__MAJOR_PARTS_CLEAN__ || window.__MAJOR_PARTS_CLEAN__.length === 0) return;
+
+    let celulas = document.querySelectorAll("td"); 
+
+    celulas.forEach(td => {
+        if (td.innerHTML.includes("MAJOR PART")) return;
+
+        let textoVisivel = td.innerText || td.textContent || "";
+        if (textoVisivel.length < 4) return;
+
+        let blocosDeTexto = textoVisivel.split(/[\s\/\n\r\,]+/);
+        let ehMajorPart = false;
+
+        for (let bloco of blocosDeTexto) {
+            let pnLimpo = String(bloco).replace(/[^A-Z0-9]/ig, '').toUpperCase();
+            
+            if (pnLimpo.length > 4 && window.__MAJOR_PARTS_CLEAN__.includes(pnLimpo)) {
+                ehMajorPart = true;
+                break;
+            }
+        }
+
+        if (ehMajorPart) {
+            td.style.fontWeight = "bold";
+            let badgeHTML = ' <span style="background-color: #dc2626; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 8px; box-shadow: 0 0 5px rgba(220, 38, 38, 0.6); white-space: nowrap;">🚨 MAJOR PART</span>';
+            td.insertAdjacentHTML('beforeend', badgeHTML);
+        }
+    });
+}
+setInterval(destacarMajorPartsNaTela, 1500);
+
+// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+// ... continuação do seu código ...
+
     const script = document.createElement('script');
     const cbName = 'callbackMajorPart_' + Math.random().toString(36).substring(7);
     
