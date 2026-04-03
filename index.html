@@ -9,15 +9,6 @@
 </head>
 <body>
 
-  <div style="background: #1e293b; border: 1px solid #38bdf8; padding: 15px; border-radius: 10px; margin-bottom: 15px; text-align: center;">
-  <p style="margin: 0 0 10px 0; font-size: 14px; color: #e5e7eb;">
-    ⚠️ O painel está carregando infinitamente? Libere a conexão de segurança da LATAM:
-  </p>
-  <a href="https://script.google.com/a/macros/latam.com/s/AKfycbx1wU2tiPZC1_iW1SYiIOJe9WYnm93QpumnQlUd4UJKFiBh28T3wFfd3RGYoi_iUtQKng/exec" target="_blank" style="background: #0ea5e9; color: white; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 13px; display: inline-block;">
-    🔑 Autenticar Acesso aos Dados
-  </a>
-</div>
-  
 <div class="sidebar">
   <h2>LOGÍSTICA AOG</h2>
   <div class="clock" id="clock"></div>
@@ -608,7 +599,7 @@ function displayCell(colKey, rawValue, tableKey, row){
   return String(rawValue ?? "");
 }
 
-const GAS_WEBAPP_URL = "const GAS_URL = "https://script.google.com/a/macros/latam.com/s/AKfycbx1wU2tiPZC1_iW1SYiIOJe9WYnm93QpumnQlUd4UJKFiBh28T3wFfd3RGYoi_iUtQKng/exec";";
+const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbx1wU2tiPZC1_iW1SYiIOJe9WYnm93QpumnQlUd4UJKFiBh28T3wFfd3RGYoi_iUtQKng/exec";
 function hasGAS(){ return !!GAS_WEBAPP_URL; }
 function buildGASUrl(params){ const u = new URL(GAS_WEBAPP_URL); Object.keys(params || {}).forEach(k => u.searchParams.set(k, String(params[k]))); u.searchParams.set("ts", String(Date.now())); return u.toString(); }
 
