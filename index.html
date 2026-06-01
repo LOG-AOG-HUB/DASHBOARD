@@ -220,10 +220,16 @@ function clearDirty(key){ if(Object.prototype.hasOwnProperty.call(__dirty, key))
 function markAllTablesDirty(){ markDirty("aog"); markDirty("war"); markDirty("fast"); markDirty("cargo"); markDirty("mro"); markDirty("cargas"); markDirty("hotlist"); markDirty("acompanhamento"); markDirty("tools"); markDirty("conexao"); }
 
 function openTab(id,btn){
+  const target = document.getElementById(id);
+  if(!target) return;
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  target.classList.add('active');
   document.querySelectorAll('.menu button').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+  if(btn && btn.classList) btn.classList.add('active');
+  else{
+    const fallbackBtn = document.querySelector(`.menu button[onclick*="'${String(id).replace(/'/g,"\\'")}'"]`);
+    if(fallbackBtn) fallbackBtn.classList.add('active');
+  }
   updateStatusVisibility();
 
   try{ scheduleNextRefresh(getAutoRefreshMs()); }catch(e){}
@@ -231,7 +237,7 @@ function openTab(id,btn){
   try{
     const tk = tableKeysBySection[id];
     if(tk){
-      if(__dirty[tk]){ renderPrios(tk); renderAircraftBox(tk); renderTable(tk); clearDirty(tk); }
+      if(__dirty[tk]){ renderPrios(tk); renderAircraftBox(tk); renderSolBox(tk); renderTable(tk); clearDirty(tk); }
       else{ try{ updateObsVisibleForTable(tk); }catch(e){} }
       if(String(id||"").toLowerCase() === "fast"){ __autoPinFastTodayAircraft__().then(()=>{ try{ renderAircraftBox("fast"); }catch(e){} }).catch(()=>{}); }
     }else{
@@ -239,7 +245,7 @@ function openTab(id,btn){
       if(id === "turno") renderSharedList("turno");
       if(id === "avisos") renderSharedList("avisos");
     }
-  }catch(e){}
+  }catch(e){ console.error("Erro ao abrir aba:", id, e); }
 }
 
 function escapeHtml(v){ return String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
@@ -417,7 +423,7 @@ const solFocusByTable = { aog:null, war:null, fast:null, cargo:null, mro:null, a
 function saveSolPinned(tableKey){ try{ localStorage.setItem(SOL_STORE_KEY[tableKey], JSON.stringify(Array.from(solPinnedByTable[tableKey]))); }catch(e){} }
 function saveAirPinned(tableKey){ try{ localStorage.setItem(AIR_STORE_KEY[tableKey], JSON.stringify(Array.from(airPinnedByTable[tableKey]))); }catch(e){} }
 
-let __cacheByTable = { aog:[], war:[], fast:[], cargo:[], mro:[], acompanhamento:[], cargas:[], hotlist:[], tools:[], conexao:[] };
+let __cacheByTable = { aog:[], war:[], fast:[], cargo:[], mro:[], acompanhamento:[], cargas:[], hotlist:[], tools:[], conexao:[] };let __lastRenderedHtmlByTable={aog:"",war:"",fast:"",cargo:"",mro:"",acompanhamento:"",cargas:"",hotlist:"",tools:"",conexao:""};
 let __cacheLastUpdate = null; let __dataVersion = 0;
 let __sortedBaseByTable = { aog:[], war:[], fast:[], cargo:[], mro:[], acompanhamento:[], cargas:[], hotlist:[], tools:[], conexao:[] }; let __sortedBaseVersion = -1;
 let __airIdSetByTable = { aog:new Map(), war:new Map(), fast:new Map(), cargo:new Map(), mro:new Map(), cargas:new Map(), hotlist:new Map(), acompanhamento:new Map(), tools:new Map(), conexao:new Map() };
@@ -444,59 +450,83 @@ function buildSortedBaseCache(){
   __sortedBaseVersion = __dataVersion;
 }
 
-function isConexaoRow(r){ return Object.values(r).join(" ").toLowerCase().includes("conexao"); }
+function isConexaoRow(r){ try{ return normalizeText(Object.values(r || {}).join(" ")).includes("conexao"); }catch(e){ return false; } }
 function prepareDataCache(){
   const out = { aog:[], war:[], fast:[], cargo:[], mro:[], acompanhamento:[], cargas:[], hotlist:[], tools:[], conexao:[] }; let maxDt = null;
   __airIdSetByTable = { aog:new Map(), war:new Map(), fast:new Map(), cargo:new Map(), acompanhamento:new Map(), cargas:new Map(), hotlist:new Map(), tools:new Map(), conexao:new Map() };
   __solIdSetByTable = { aog:new Map(), war:new Map(), fast:new Map(), cargo:new Map(), acompanhamento:new Map(), cargas:new Map(), hotlist:new Map(), tools:new Map(), conexao:new Map() };
-  
+
+  function addRowToTable(tableKey, row){
+    if(!row || !out[tableKey]) return;
+    out[tableKey].push(row);
+    __pushAirId__(tableKey, row);
+    __pushSolId__(tableKey, row);
+  }
+
   const arr = Array.isArray(dados) ? dados : [];
   for(let i=0;i<arr.length;i++){
-    const r = arr[i]; rowId(r); if(r) r.__search = null;
-    if(r){ if(r.__stRank == null) r.__stRank = statusPriorityRank(r[STATUS_COL]); if(r.__midStr == null) r.__midStr = String(r.Material_ID ?? ""); if(r.__solStr == null) r.__solStr = String(r.Numero_de_solicitacao ?? ""); }
-    if(r && r.__dispDateLower == null){ const shown = displayCell(DATE_COL, r[DATE_COL], "aog", r); r.__dispDateLower = String(shown || "").toLowerCase(); }
-    
-    // 👇 Mudança para Aba Cargas não puxar "AIRCRAFT", "ACFT" ou "RA"
-    if(isCargasRow(r)){
-      }
-      if(isConexaoRow(r)){
-        out.conexao.push(r);
-      }
-      if(isCargasRow(r)){ 
-      const airUpper = String(r[AIR_COL] || "").toUpperCase();
-      const forbiddenCargas = airUpper.includes("AIRCRAFT") || airUpper.includes("ACFT") || /\bRA\b/.test(airUpper);
-      
-      if (!forbiddenCargas) {
-        out.cargas.push(r); 
-        __pushAirId__("cargas", r); 
-        __pushSolId__("cargas", r); 
-      }
-      // Hotlist continua puxando tudo que seja carga + outras lógicas se tiver
-      out.hotlist.push(r); 
-      __pushAirId__("hotlist", r); 
-      __pushSolId__("hotlist", r); 
+    const r = arr[i];
+    if(!r) continue;
+
+    rowId(r);
+    r.__search = null;
+
+    if(r.__stRank == null) r.__stRank = statusPriorityRank(r[STATUS_COL]);
+    if(r.__midStr == null) r.__midStr = String(r.Material_ID ?? "");
+    if(r.__solStr == null) r.__solStr = String(r.Numero_de_solicitacao ?? "");
+    if(r.__dispDateLower == null){
+      const shown = displayCell(DATE_COL, r[DATE_COL], "aog", r);
+      r.__dispDateLower = String(shown || "").toLowerCase();
     }
 
-    out.cargo.push(r); __pushAirId__("cargo", r); __pushSolId__("cargo", r);
-    try{ const b = String((r && (r.Base ?? r["Base"])) || "").trim().toUpperCase(); if(b === "MRO"){ out.mro.push(r); __pushAirId__("mro", r); __pushSolId__("mro", r); } }catch(e){}
-    if(!isConexaoRow(r)){ out.acompanhamento.push(r); } __pushAirId__("acompanhamento", r); __pushSolId__("acompanhamento", r);
-    
-    if(isFerramentaRow(r)){ out.tools.push(r); __pushAirId__("tools", r); __pushSolId__("tools", r); }
-    const logDesc = normalizeText(r.Descricao_logistica || "");
-    if(logDesc.includes("conexao")){
-      out.conexao.push(r); 
-      __pushAirId__("conexao", r); 
-      __pushSolId__("conexao", r);
+    const isConexao = isConexaoRow(r);
+    const isCarga = isCargasRow(r);
+
+    if(isConexao){
+      addRowToTable("conexao", r);
     }
+
+    // Aba Cargas não deve puxar aeronaves genéricas "AIRCRAFT", "ACFT" ou "RA".
+    if(isCarga){
+      const airUpper = String(r[AIR_COL] || "").toUpperCase();
+      const forbiddenCargas = airUpper.includes("AIRCRAFT") || airUpper.includes("ACFT") || /\bRA\b/.test(airUpper);
+
+      if(!forbiddenCargas){
+        addRowToTable("cargas", r);
+      }
+
+      // Hotlist continua puxando tudo que seja carga.
+      addRowToTable("hotlist", r);
+    }
+
+    addRowToTable("cargo", r);
+
+    try{
+      const b = String((r && (r.Base ?? r["Base"])) || "").trim().toUpperCase();
+      if(b === "MRO") addRowToTable("mro", r);
+    }catch(e){}
+
+    // Conexão sai da aba Acompanhamento e fica somente na aba Conexão.
+    if(!isConexao){
+      addRowToTable("acompanhamento", r);
+    }
+
+    if(isFerramentaRow(r)){
+      addRowToTable("tools", r);
+    }
+
     const c = String((r && r.Criticidade) || "").toUpperCase();
-    if(c.includes("WAR")){ out.war.push(r); __pushAirId__("war", r); __pushSolId__("war", r); }
-    if(c.includes("FAST PASS") || c.includes("FASTPASS") || c.includes("FAST")){ out.fast.push(r); __pushAirId__("fast", r); __pushSolId__("fast", r); }
-    
-    if(c.includes("AOG") && !c.includes("T-AOG")){ out.aog.push(r); __pushAirId__("aog", r); __pushSolId__("aog", r); }
-    
-    const dt = parseMaybeDate(r && r.Data_Ultima_Atualizacao); if(dt && (!maxDt || dt.getTime() > maxDt.getTime())) maxDt = dt;
+    if(c.includes("WAR")) addRowToTable("war", r);
+    if(c.includes("FAST PASS") || c.includes("FASTPASS") || c.includes("FAST")) addRowToTable("fast", r);
+    if(c.includes("AOG") && !c.includes("T-AOG")) addRowToTable("aog", r);
+
+    const dt = parseMaybeDate(r && r.Data_Ultima_Atualizacao);
+    if(dt && (!maxDt || dt.getTime() > maxDt.getTime())) maxDt = dt;
   }
-  __cacheByTable = out; __cacheLastUpdate = maxDt || new Date(); buildSortedBaseCache();
+
+  __cacheByTable = out;
+  __cacheLastUpdate = maxDt || new Date();
+  buildSortedBaseCache();
 }
 
 function __pushAirId__(tableKey, r){ const a = cleanVal(r && r[AIR_COL]); if(!a) return; const mid = cleanVal(r && r.Material_ID); const mp = __airIdSetByTable[tableKey]; if(!mp) return; let set = mp.get(a); if(!set){ set = new Set(); mp.set(a,set); } if(mid) set.add(mid); }
@@ -821,7 +851,7 @@ function solCardXAction(tableKey, sol){ const tk = String(tableKey||"").toLowerC
 function countIdsForSol(tableKey, sol){ const tk = String(tableKey||"").toLowerCase(); const s = cleanVal(sol); if(!s) return 0; const mp = __solIdSetByTable[tk]; if(!mp) return 0; const set = mp.get(s); return set ? set.size : 0; }
 
 function renderSolBox(tableKey){
-  const wrapId = { aog:"air-aog", war:"air-war", fast:"air-fast", cargo:"air-cargo", mro:"air-mro", acompanhamento:"air-acompanhamento", cargas:"air-cargas", hotlist:"air-hotlist", tools:"air-tools", conexao:"air-conexao" }[tableKey];
+  const wrapId = { aog:"sol-aog", war:"sol-war", fast:"sol-fast", cargo:"sol-cargo", mro:"sol-mro", acompanhamento:"sol-acompanhamento", cargas:"sol-cargas", hotlist:"sol-hotlist", tools:"sol-tools", conexao:"sol-conexao" }[tableKey];
   const wrap = document.getElementById(wrapId); if(!wrap) return;
   const set = solPinnedByTable[tableKey]; if(!set || set.size === 0){ wrap.innerHTML = ""; return; }
   const items = Array.from(set).filter(Boolean).sort((a,b)=>a.localeCompare(b));
@@ -838,7 +868,7 @@ function renderSolBox(tableKey){
 }
 
 function renderAircraftBox(tableKey){
-  const wrapId = { aog:"air-aog", war:"air-war", fast:"air-fast", cargo:"air-cargo", mro:"air-mro", acompanhamento:"air-acompanhamento", cargas:"air-cargas", hotlist:"air-hotlist", tools:"air-tools" }[tableKey];
+  const wrapId = { aog:"air-aog", war:"air-war", fast:"air-fast", cargo:"air-cargo", mro:"air-mro", acompanhamento:"air-acompanhamento", cargas:"air-cargas", hotlist:"air-hotlist", tools:"air-tools", conexao:"air-conexao" }[tableKey];
   const wrap = document.getElementById(wrapId); if(!wrap) return;
   const set = airPinnedByTable[tableKey]; if(!set || set.size === 0){ wrap.innerHTML = ""; return; }
   const items = Array.from(set).filter(Boolean).sort((a,b)=>a.localeCompare(b));
@@ -954,7 +984,7 @@ function renderTable(tableKey){
 
         return `<td>${escapeHtml(displayed)}</td>`;
       }).join("")}</tr>`;
-  }).join(""); html += `</tbody>`; el.innerHTML = html; enableColumnResize(el); try{ updateObsVisibleForTable(tableKey); }catch(e){}
+  }).join(""); html += `</tbody>`;const __prevHtml=__lastRenderedHtmlByTable[tableKey]||"";if(__prevHtml===html)return;__lastRenderedHtmlByTable[tableKey]=html;const __wrap=el.closest('.tableWrap');const __scrollTop=__wrap?__wrap.scrollTop:0;const __scrollLeft=__wrap?__wrap.scrollLeft:0;const __pageScroll=window.scrollY||window.pageYOffset||0;el.innerHTML=html;if(__wrap){__wrap.scrollTop=__scrollTop;__wrap.scrollLeft=__scrollLeft;}try{window.scrollTo(0,__pageScroll);}catch(e){}enableColumnResize(el);try{updateObsVisibleForTable(tableKey);}catch(e){}
 }
 
 function makeStatusHtml(line1){ return `<div>${line1}</div><div class="statusLine"><span class="pill" id="pillLastFetch">Refresh = tentativa: —</span><span class="pill" id="pillSuccess">Sucesso = atualização concluída: —</span><span class="pill" id="pillNext">Próx refresh em: —</span><span class="pill" id="pillUpdatedAt">Atualizado = frescor do dado: —</span><span class="pill warn" id="pillState">Estado: OK</span></div>`; }
@@ -1013,10 +1043,10 @@ async function refreshData(){
     try{ __lastRefreshSource = "gas-full"; const out = await __gasGetDadosFull__(); newData = out.data; __lastRefreshMs = out.ms; }catch(e1){ const msg = e1 && e1.message ? e1.message : String(e1); erros.push("gas-full: " + msg); newData = null; }
     if(!newData){ try{ __lastRefreshSource = "gas-chunk"; const out = await __gasGetDadosChunked__((p)=>{ try{ const st = document.getElementById("status"); if(st && __ADMIN_MODE){ st.style.display = "block"; st.innerHTML = makeStatusHtml(`⏳ Carregando chunks... ${p.doneCount}/${p.total} (${p.pct}%)`); } }catch(e){} }); newData = out.data; __lastRefreshMs = out.ms; }catch(e2){ const msg = e2 && e2.message ? e2.message : String(e2); erros.push("gas-chunk: " + msg); newData = null; } }
     if(!Array.isArray(newData) || newData.length === 0){ __lastRefreshError = erros.length ? erros.join(" | ") : "Sem dados"; return; }
-    dados = newData; __lastSuccessAt = new Date(); __lastRefreshError = "";
+    const __sameData=JSON.stringify(dados)===JSON.stringify(newData);dados=newData;__lastSuccessAt=new Date();__lastRefreshError="";if(__sameData){paintUpdateInfo();paintRefreshInfo();try{renderFrescorBanner();}catch(e){}return;}
     try{ await syncSharedAllTables(); }catch(e){} try{ await syncSharedObs(); }catch(e){} try{ await syncSharedTurno(); }catch(e){} try{ await syncSharedAvisos(); }catch(e){} try{ await syncSharedLinks(); }catch(e){}
     __dataVersion++; __sortedBaseVersion = -1; for(const tk of SHARED_TABLE_KEYS) invalidateFilterCache(tk); markAllTablesDirty(); prepareDataCache(); __lastUpdateDate = computeLastUpdateFromData();
-    if(__isUserTyping__()){ __pendingRerender = true; setTimeout(()=>{ if(__pendingRerender){ __pendingRerender = false; rerenderAll({ onlyActive: true }); } }, 3000); }else{ rerenderAll({ onlyActive: true }); }
+    if(__isUserTyping__()){__pendingRerender=true;}else{rerenderAll({onlyActive:true});}
   }catch(err){ __lastRefreshError = (err && err.message) ? err.message : String(err); }finally{ __refreshInFlight = false; paintUpdateInfo(); paintRefreshInfo(); try{ renderFrescorBanner(); }catch(e){} }
 }
 
@@ -1192,4 +1222,3 @@ function initCtxMenuHandlers(){
 </script>
 </body>
 </html>
-<div id="conexao" class="section"><h1>Conexão</h1><div id="air-conexao"></div><div id="sol-conexao"></div><div id="prio-conexao"></div><div class="tableWrap"><table id="tbl-conexao"></table></div></div>
