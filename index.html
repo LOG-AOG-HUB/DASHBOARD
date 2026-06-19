@@ -456,8 +456,27 @@ function applyStatusOption(val){
 }
 
 const STATUS_COL = "Status_material_ferramenta"; const AIR_COL = "Aeronave"; const SOL_COL = "Numero_de_solicitacao"; const TYPE_COL = "Tipo";
-function hasCargasKeyword(text){ return normalizeText(text || "").includes("carga"); }
-function isCargasRow(r){ if(!r) return false; return hasCargasKeyword(r["Descricao_logistica"]); }
+function hasCargasKeyword(text){
+  const s = normalizeText(text || "");
+  return s.includes("carga") || s.includes("viacarga") || s.includes("aereoviacarga") || s.includes("aereoviacargas");
+}
+function isCargasRow(r){
+  if(!r) return false;
+  const campos = [
+    r["Descricao_logistica"], r.Descricao_logistica, r["Log"], r.Log,
+    r["Criticidade"], r.Criticidade, r["Base"], r.Base,
+    r["Origem"], r.Origem, r["Destino"], r.Destino,
+    r["AWB"], r.AWB, r["Nota_fiscal"], r.Nota_fiscal,
+    r["Tipo"], r.Tipo
+  ];
+  if(campos.some(hasCargasKeyword)) return true;
+  try{
+    const all = normalizeText(Object.values(r || {}).join(" "));
+    return all.includes("viacarga") || all.includes("viacargas") || all.includes("aereoviacarga") || all.includes("aereoviacargas");
+  }catch(e){
+    return false;
+  }
+}
 function isFerramentaType(typeRaw){ const raw = String(typeRaw ?? "").trim(); if(!raw) return false; const n = Number(raw); if(!isNaN(n) && n === 2) return true; const s = normalizeText(raw); if(s.includes("ferramenta") || s.includes("tool")) return true; return false; }
 function isFerramentaStatus(statusRaw){ const s = normalizeText(statusRaw || ""); if(!s) return false; return s.includes("ferramenta"); }
 function isFerramentaRow(r){ const tipo = r ? (r[TYPE_COL] ?? r.Tipo ?? "") : ""; if(isFerramentaType(tipo)) return true; return isFerramentaStatus(r ? r[STATUS_COL] : ""); }
